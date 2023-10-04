@@ -52,8 +52,8 @@ class CustomTreeExtractor(TreeExtract.TreeExtractor):
 
         for page_num, layout in enumerate(layouts):
             page_num += 1  # indexes start at 1
-            bg_figure: LTFigure = next(x for x in layout._objs if isinstance(x, LTFigure) and x.width == layout.width)
-            bg_image: LTImage = next(x for x in bg_figure._objs if isinstance(x, LTImage))
+            bg_figure = next(x for x in layout._objs if isinstance(x, LTFigure) and x.width == layout.width)
+            bg_image = next(x for x in bg_figure._objs if isinstance(x, LTImage))
             scale_factor = bg_image.srcsize[0] / layout.width
             elems, font_stat = device.normalize_pdf(layout, scale_factor)
             self.elems[page_num] = elems
