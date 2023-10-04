@@ -15,6 +15,7 @@ class CustomTreeExtractor(TreeExtract.TreeExtractor):
         self.doc = doc
         html = doc.createElement("html")
         doc.appendChild(html)
+        html.setAttribute("xmlns", "http://www.w3.org/1999/xhtml")
         head = doc.createElement("head")
         html.appendChild(head)
         # meta
