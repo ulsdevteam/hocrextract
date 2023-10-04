@@ -1,14 +1,63 @@
 import codecs
+import logging
+import os
+from typing import List
 import pdftotree
 from argparse import ArgumentParser
 from functools import cmp_to_key
 from pathlib import Path
+from pdfminer.layout import LAParams, LTPage, LTFigure, LTImage
+from pdfminer.pdfdocument import PDFDocument
+from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
+from pdfminer.pdfpage import PDFPage
+from pdfminer.pdfparser import PDFParser
 from pdftotree import TreeExtract
+from pdftotree.utils.pdf.pdf_utils import CustomPDFPageAggregator
 from pdftotree.utils.pdf.vector_utils import column_order
 from xml.dom.minidom import Document
 
 class CustomTreeExtractor(TreeExtract.TreeExtractor):
-    """Extracts HOCR info to separate files"""
+    """Extracts HOCR info to separate files and scales based on the size of the bg image"""
+
+    def parse(self):
+        layouts: List[LTPage] = []
+        log = logging.getLogger(__name__)
+
+        # Open a PDF file.
+        with open(os.path.realpath(self.pdf_file), "rb") as fp:
+            # Create a PDF parser object associated with the file object.
+            parser = PDFParser(fp)
+            # Create a PDF document object that stores the document structure.
+            # Supply the password for initialization.
+            document = PDFDocument(parser, password="")
+            # Create a PDF resource manager object that stores shared resources.
+            rsrcmgr = PDFResourceManager()
+            # Set parameters for analysis.
+            laparams = LAParams(char_margin=1.0, word_margin=0.1, detect_vertical=True)
+            # Create a PDF page aggregator object.
+            device = CustomPDFPageAggregator(rsrcmgr, laparams=laparams)
+            # Create a PDF interpreter object.
+            interpreter = PDFPageInterpreter(rsrcmgr, device)
+            # Process each page contained in the document.
+            for page_num, page in enumerate(PDFPage.create_pages(document)):
+                try:
+                    interpreter.process_page(page)
+                except OverflowError as oe:
+                    log.exception(
+                        "{}, skipping page {} of {}".format(oe, page_num, self.pdf_file)
+                    )
+                    continue
+                layout = device.get_result()
+                layouts.append(layout)
+
+        for page_num, layout in enumerate(layouts):
+            page_num += 1  # indexes start at 1
+            bg_figure: LTFigure = next(x for x in layout._objs if isinstance(x, LTFigure) and x.width == layout.width)
+            bg_image: LTImage = next(x for x in bg_figure._objs if isinstance(x, LTImage))
+            scale_factor = bg_image.srcsize[0] / layout.width
+            elems, font_stat = device.normalize_pdf(layout, scale_factor)
+            self.elems[page_num] = elems
+            self.font_stats[page_num] = font_stat
 
     def get_html_for_page(self, page_num: int):
         doc = Document()
