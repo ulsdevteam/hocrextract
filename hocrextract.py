@@ -115,6 +115,10 @@ class CustomTreeExtractor(TreeExtract.TreeExtractor):
                 element = self.get_html_others(box[0], box[1:], page_num)
                 page.appendChild(element)
         return doc.toprettyxml()
+    
+def read_pids(pids_file):
+    with open(pids_file) as file:
+        return file.read().splitlines()
 
 if __name__ == "__main__":
     parser = ArgumentParser(
@@ -138,10 +142,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-p",
-        "--page-offset",
-        type=int,
-        help="Offsets the page number in the output filename",
-        default=0
+        "--pids",
+        type=str,
+        help="File containing PIDs corresponding to each page of the input PDF, one per line."
     )
     args = parser.parse_args()
     output_folder = args.output or Path(args.pdf_file).stem
@@ -149,11 +152,13 @@ if __name__ == "__main__":
     extractor = CustomTreeExtractor(args.pdf_file)
     extractor.parse()
     extractor.get_tree_structure(None, None)
+    pids = args.pids and read_pids(args.pids)
     for page_num in extractor.get_elems().keys():
         page_html = extractor.get_html_for_page(page_num)
-        output_path = Path(output_folder, "{}-{}_HOCR.shtml".format(
+        pid = pids[page_num - 1].replace(':', '_') if pids else "{}-{}".format(
             Path(args.pdf_file).stem,
-            str(page_num + args.page_offset).zfill(4)
-        ))
+            str(page_num).zfill(4)
+        )
+        output_path = Path(output_folder, f"{pid}_HOCR.shtml")
         with codecs.open(output_path, encoding="utf-8", mode="w") as file:
             file.write(page_html)
